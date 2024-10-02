@@ -80,7 +80,7 @@ struct Query
 	UI ts, te;
 };
 Query queries[10010 * 25];
-int ans1[10010 * 25], ans2[10010 * 25], qsi[25], qk[25];
+int ans1[10010 * 25], ans2[10010 * 25], ans3[10010 * 25];
 vector<int> v;
 int vern, kmax;
 UI tmax;
@@ -429,23 +429,24 @@ unordered_map<UI, vector<PUI>> rectc;
 map<UI, int> recCT;
 vector<int>recpre;
 vector<int>recne;
+vector<int>transnode;
 vector<UI>cts;
-void remove(UI ts, int u, int k)
+void remove(UI ts, int u, int k, vector<vector<MCTS_Link>>& mcts_k)
 {
-
+	int MCTS_index = 0;
 	UI ct = cts[u];
 	int vp = recpre[u], vn = recne[u];
 	recne[vp] = vn;
 	recpre[vn] = vp;
-	if (MCTS_index[vp][k].back().ts == ts)
+	if (mcts_k[transnode[vp]].back().ts == ts)
 	{
-		MCTS_Link& mcts_link = MCTS_index[vp][k].back();
+		MCTS_Link& mcts_link = mcts_k[transnode[vp]].back();
 		mcts_link.tc = cts[vn];
-		mcts_link.ne = vn;
+		mcts_link.ne = transnode[vn];
 	}
 	else
 	{
-		MCTS_index[vp][k].push_back({ ts,cts[vn],vn });
+		mcts_k[transnode[vp]].push_back({ ts,cts[vn],transnode[vn] });
 	}
 	if (cts[vp] != ct && cts[vn] != ct)
 	{
@@ -456,9 +457,10 @@ void remove(UI ts, int u, int k)
 		recCT[ct] = vp;
 	}
 }
-void update(UI ts, UI tc, int u, int k)
+void update(UI ts, UI tc, int u, int k, vector<vector<MCTS_Link>>& mcts_k)
 {
-	remove(ts, u, k);
+	int MCTS_index = 0;
+	remove(ts, u, k, mcts_k);
 	cts[u] = tc;
 	if (tc == INF - 1)return;
 	if (recCT.count(tc))
@@ -469,31 +471,31 @@ void update(UI ts, UI tc, int u, int k)
 		recne[u] = recne[v];
 		recpre[recne[u]] = u;
 		recne[v] = u;
-		if (MCTS_index[v][k].back().ts == ts)
+		if (mcts_k[transnode[v]].back().ts == ts)
 		{
-			MCTS_Link& mcts_link = MCTS_index[v][k].back();
+			MCTS_Link& mcts_link = mcts_k[transnode[v]].back();
 			mcts_link.tc = cts[u];
-			mcts_link.ne = u;
+			mcts_link.ne = transnode[u];
 		}
 		else
 		{
-			MCTS_index[v][k].push_back({ ts,cts[u],u });
+			mcts_k[transnode[v]].push_back({ ts,cts[u],transnode[u] });
 
 		}
-		if (MCTS_index[u][k].back().ts == ts)
+		if (mcts_k[transnode[u]].back().ts == ts)
 		{
-			MCTS_Link& mcts_link = MCTS_index[u][k].back();
+			MCTS_Link& mcts_link = mcts_k[transnode[u]].back();
 			mcts_link.tc = cts[recne[u]];
-			mcts_link.ne = recne[u];
+			mcts_link.ne = transnode[recne[u]];
 		}
 		else
 		{
-			MCTS_index[u][k].push_back({ ts,cts[recne[u]],recne[u] });
+			mcts_k[transnode[u]].push_back({ ts,cts[recne[u]],transnode[recne[u]] });
 		}
 	}
 	else
 	{
-		auto it = recCT.lower_bound(tc);
+		auto it = recCT.upper_bound(tc);
 		it--;
 		PUI pi = *it;
 		recCT[tc] = u;
@@ -502,36 +504,40 @@ void update(UI ts, UI tc, int u, int k)
 		recne[u] = recne[pre];
 		recne[pre] = u;
 		recpre[u] = pre;
-		if (MCTS_index[pre][k].back().ts == ts)
+		if (mcts_k[transnode[pre]].back().ts == ts)
 		{
-			MCTS_Link& mcts_link = MCTS_index[pre][k].back();
+			MCTS_Link& mcts_link = mcts_k[transnode[pre]].back();
 			mcts_link.tc = cts[u];
-			mcts_link.ne = u;
+			mcts_link.ne = transnode[u];
 		}
 		else
 		{
-			MCTS_index[pre][k].push_back({ ts,cts[u],u });
+			mcts_k[transnode[pre]].push_back({ ts,cts[u],transnode[u] });
 		}
-		if (MCTS_index[u][k].back().ts == ts)
+		if (mcts_k[transnode[u]].back().ts == ts)
 		{
-			MCTS_Link& mcts_link = MCTS_index[u][k].back();
+			MCTS_Link& mcts_link = mcts_k[transnode[u]].back();
 			mcts_link.tc = cts[recne[u]];
-			mcts_link.ne = recne[u];
+			mcts_link.ne = transnode[recne[u]];
 		}
 		else
 		{
-			MCTS_index[u][k].push_back({ ts,cts[recne[u]],recne[u] });
+			mcts_k[transnode[u]].push_back({ ts,cts[recne[u]],transnode[recne[u]] });
 		}
 	}
 }
+
 void build_MCTS_K(int k)
 {
+	vector<vector<MCTS_Link>>& mcts_k = MCTS_index[k];
+	int MCTS_index;
 	printf("start build %d MCTS-Index\n", k + 1);
 	rectc.clear();
 	recCT.clear();
 
-	recpre.resize(vern + 2, 0);
-	recne.resize(vern + 2, 0);
+	recpre.resize(vern + 2);
+	recne.resize(vern + 2);
+	transnode.resize(vern + 2);
 	vector<PUI>init_arr;
 	init_arr.push_back({ 0,0 });
 	init_arr.push_back({ INF,vern + 1 });
@@ -569,6 +575,11 @@ void build_MCTS_K(int k)
 		cout << init_arr[0].x << " " << init_arr[0].y << "\n" << init_arr[init_n - 1].x << " " << init_arr[init_n - 1].y << "\n";
 		exit(0);
 	}
+	mcts_k.resize(init_n);
+	for (int i = 0; i < init_n; i++)
+	{
+		transnode[init_arr[i].y] = i;
+	}
 	for (int i = 1; i < init_n - 1; i++)
 	{
 		if (init_arr[i].x != init_arr[i + 1].x)
@@ -577,16 +588,16 @@ void build_MCTS_K(int k)
 		}
 		recpre[init_arr[i].y] = init_arr[i - 1].y;
 		recne[init_arr[i].y] = init_arr[i + 1].y;
-		MCTS_index[init_arr[i].y][k].push_back({ 1,init_arr[i + 1].x,init_arr[i + 1].y });
+		mcts_k[transnode[init_arr[i].y]].push_back({ 1,init_arr[i + 1].x,transnode[init_arr[i + 1].y] });
 	}
-	MCTS_index[0][k].push_back({ 1,init_arr[1].x,init_arr[1].y });
+	mcts_k[transnode[init_arr[0].y]].push_back({ 1,init_arr[1].x,transnode[init_arr[1].y] });
 	recne[0] = init_arr[1].y;
 	recpre[vern + 1] = init_arr[init_n - 2].y;
 	for (UI ts : rects)
 	{
 		for (PUI upd : rectc[ts])
 		{
-			update(ts, upd.x, upd.y, k);
+			update(ts, upd.x, upd.y, k, mcts_k);
 		}
 	}
 }
@@ -594,13 +605,13 @@ void build_MCTS()
 {
 	printf("start build MCTS-Index\n");
 	auto tstart = clock();
-	MCTS_index.resize(vern + 1);
+	MCTS_index.resize(kmax);
 	cts.resize(vern + 2, 0);
-	for (int i = 1; i <= vern; i++)
+	/*for (int i = 1; i <= vern; i++)
 	{
 		MCTS_index[i].resize(core[i]);
 	}
-	MCTS_index[0].resize(kmax);
+	MCTS_index[0].resize(kmax);*/
 	double MB = 1 << 20;
 	for (int k = 1; k < kmax; k++)
 	{
@@ -609,7 +620,7 @@ void build_MCTS()
 	printf("finish build MCTS-Index when %lf s\n", ((clock() - tstart) / (double)CLOCKS_PER_SEC));
 
 	LL sum_mcts = 0;
-	for (int i = 0; i <= vern; i++)
+	for (int i = 1; i < kmax; i++)
 	{
 		for (int j = 0; j < MCTS_index[i].size(); j++)
 		{
@@ -638,23 +649,26 @@ vector<int> query_By_PHC(UI ts, UI te, int k)
 }
 vector<int> query_By_MCTS(UI ts, UI te, int k)
 {
+	vector<vector<MCTS_Link>>& mcts_k = MCTS_index[k - 1];
 	vector<int>ret;
 	int u = 0;
+
 	while (true)
 	{
-		vector<MCTS_Link>& mcts_u_k = MCTS_index[u][k - 1];
-		int l = 0, r = mcts_u_k.size() - 1;
+		vector<MCTS_Link>& mcts_k_u = mcts_k[u];
+		int l = 0, r = mcts_k_u.size() - 1;
 		while (l < r)
 		{
 			int mid = l + r + 1 >> 1;
-			if (mcts_u_k[mid].ts > ts)r = mid - 1;
+			if (mcts_k_u[mid].ts > ts)r = mid - 1;
 			else l = mid;
 		}
-		MCTS_Link& mcts_link = mcts_u_k[l];
+		MCTS_Link& mcts_link = mcts_k_u[l];
 		if (mcts_link.tc <= te)
 		{
 			u = mcts_link.ne;
 			ret.push_back(u);
+			//cts_k_u = mcts_k[u];
 		}
 		else
 		{
@@ -698,30 +712,30 @@ void generateTest(double window_rate, double k_rate, int group_size)
 		{
 			queries[i + base] = queries[i + base - group_size];
 		}
-		
-//		auto mcts_end = clock();
-//		auto phc_start = clock();
-//		vector<int>phc_result = query_By_PHC(queries[i + base].ts, queries[i + base].te, k_val);
-//		auto phc_end = clock();
-//		phc_cost += phc_end - phc_start;
-//
-//		auto mcts_start = clock();
-//		vector<int>mcts_result = query_By_MCTS(queries[i + base].ts, queries[i + base].te, k_val);
-//		auto mcts_end = clock();
-//		mcts_cost += mcts_end - mcts_start;
-//		
-//		int l = getL(queries[i + base].ts), r = getR(queries[i + base].te);
-//		buildtel(l, r);
-//		initMH(l, r);
-//		auto tcd_start = clock();
-//		vector<int>tcd_result = query_By_TCD(k_val);
-//		auto tcd_end = clock();
-//		tcd_cost += tcd_end - tcd_start;
-//		if (phc_result.size() != mcts_result.size() || mcts_result.size() != tcd_result.size())
-//		{
-//			printf("query error ts = %lld, te = %lld ,k = %d\n", (LL)queries[i + base].ts, (LL)queries[i + base].te, k_val);
-//			exit(0);
-//		}
+
+		//		auto mcts_end = clock();
+		//		auto phc_start = clock();
+		//		vector<int>phc_result = query_By_PHC(queries[i + base].ts, queries[i + base].te, k_val);
+		//		auto phc_end = clock();
+		//		phc_cost += phc_end - phc_start;
+		//
+		//		auto mcts_start = clock();
+		//		vector<int>mcts_result = query_By_MCTS(queries[i + base].ts, queries[i + base].te, k_val);
+		//		auto mcts_end = clock();
+		//		mcts_cost += mcts_end - mcts_start;
+		//		
+		//		int l = getL(queries[i + base].ts), r = getR(queries[i + base].te);
+		//		buildtel(l, r);
+		//		initMH(l, r);
+		//		auto tcd_start = clock();
+		//		vector<int>tcd_result = query_By_TCD(k_val);
+		//		auto tcd_end = clock();
+		//		tcd_cost += tcd_end - tcd_start;
+		//		if (phc_result.size() != mcts_result.size() || mcts_result.size() != tcd_result.size())
+		//		{
+		//			printf("query error ts = %lld, te = %lld ,k = %d\n", (LL)queries[i + base].ts, (LL)queries[i + base].te, k_val);
+		//			exit(0);
+		//		}
 	}
 	auto phc_start = clock();
 	for (int i = 0; i < group_size; i++)
@@ -739,14 +753,24 @@ void generateTest(double window_rate, double k_rate, int group_size)
 	}
 	auto mcts_end = clock();
 	double mcts_cost = mcts_end - mcts_start;
-	
-	
+
 	double tcd_cost = 0;
-	for(int i = 0;i < group_size;i++)
+	for (int i = 0; i < group_size; i++)
 	{
-		if(ans1[i + base] != ans2[i + base])
+		int l = getL(queries[i + base].ts), r = getR(queries[i + base].te);
+		buildtel(l, r);
+		initMH(l, r);
+		auto tcd_start = clock();
+		vector<int>tcd_result = query_By_TCD(k_val);
+		auto tcd_end = clock();
+		ans3[i + base] = tcd_result.size();
+		tcd_cost += tcd_end - tcd_start;
+	}
+	for (int i = 0; i < group_size; i++)
+	{
+		if (ans1[i + base] != ans2[i + base] || ans2[i + base] != ans3[i + base])
 		{
-			cout << "error\n";
+			cout << "error  " << ans1[i + base] << " " << ans2[i + base];
 			exit(0);
 		}
 	}
@@ -755,7 +779,7 @@ void generateTest(double window_rate, double k_rate, int group_size)
 	mcts_cost *= 1e6 / CLOCKS_PER_SEC / group_size;
 	tcd_cost *= 1e6 / CLOCKS_PER_SEC / group_size;
 	printf("window_rate is %.2lf, k_rate is %.2lf\ngroup_size is %d\nphc_time_cost is %.6lf us\n,mcts_time_cost is %.6lf us\n,tcd_time_cost is %.6lf us \n\n\n"
-	,window_rate,k_rate, group_size, phc_cost, mcts_cost,tcd_cost);
+		, window_rate, k_rate, group_size, phc_cost, mcts_cost, tcd_cost);
 }
 int getGroupSize(const char* groupsize)
 {
@@ -777,7 +801,7 @@ int main(int argc, char* argv[])
 	loadPHC(argv[2]);
 	int groupsize = getGroupSize(argv[3]);
 	build_MCTS();
-	
+
 	for (double window_rate = 0.1; window_rate < 1; window_rate += 0.2)
 	{
 		for (double k_rate = 0.1; k_rate < 1; k_rate += 0.2)
