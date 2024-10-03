@@ -81,6 +81,8 @@ struct Query
 {
 	UI ts, te;
 };
+Query queries[10010 * 25];
+int ans1[10010 * 25], ans2[10010 * 25], ans3[10010 * 25];
 vector<int> v;
 int vern, kmax;
 UI tmax;
@@ -347,5 +349,4 @@ int main(int argc, char* argv[])
 	loadPHC(argv[1]);
 	build_MCTS();
 	return 0;
-
 }
