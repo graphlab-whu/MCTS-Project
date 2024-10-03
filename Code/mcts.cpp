@@ -690,10 +690,6 @@ vector<int> query_By_TCD(int k)
 	return ret;
 }
 
-UI getRand()
-{
-	return ((rand() << 16) | rand());
-}
 void generateTest(double window_rate, double k_rate)
 {
 	srand((unsigned)time(NULL));
