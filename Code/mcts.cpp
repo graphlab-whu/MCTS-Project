@@ -57,6 +57,8 @@
 const int VMAX = 4000000;
 const int EMAX = 83000000;
 const int TMAX = 56650000;
+const int GroupSize = 10000;
+const int TCDGroupSize = 10;
 using namespace std;
 typedef unsigned int UI;
 typedef long long LL;
@@ -692,121 +694,77 @@ UI getRand()
 {
 	return ((rand() << 16) | rand());
 }
-int base = 0;
-void generateTest(double window_rate, double k_rate, int group_size)
+void generateTest(double window_rate, double k_rate)
 {
 	srand((unsigned)time(NULL));
 	UI window_size = tmax * window_rate;
 	int k_val = (int)(kmax * k_rate - 0.0001) + 1;
 	UI range = tmax - window_size;
-	bool flag = (k_rate == 0.1);
-	for (int i = 0; i < group_size; i++)
+	for (int i = 0; i < GroupSize; i++)
 	{
-		if (flag)
-		{
-			UI ts = rand() % range + 1;
-			UI te = ts + window_size;
-			queries[i + base] = { ts,te };
-		}
-		else
-		{
-			queries[i + base] = queries[i + base - group_size];
-		}
-
-		//		auto mcts_end = clock();
-		//		auto phc_start = clock();
-		//		vector<int>phc_result = query_By_PHC(queries[i + base].ts, queries[i + base].te, k_val);
-		//		auto phc_end = clock();
-		//		phc_cost += phc_end - phc_start;
-		//
-		//		auto mcts_start = clock();
-		//		vector<int>mcts_result = query_By_MCTS(queries[i + base].ts, queries[i + base].te, k_val);
-		//		auto mcts_end = clock();
-		//		mcts_cost += mcts_end - mcts_start;
-		//		
-		//		int l = getL(queries[i + base].ts), r = getR(queries[i + base].te);
-		//		buildtel(l, r);
-		//		initMH(l, r);
-		//		auto tcd_start = clock();
-		//		vector<int>tcd_result = query_By_TCD(k_val);
-		//		auto tcd_end = clock();
-		//		tcd_cost += tcd_end - tcd_start;
-		//		if (phc_result.size() != mcts_result.size() || mcts_result.size() != tcd_result.size())
-		//		{
-		//			printf("query error ts = %lld, te = %lld ,k = %d\n", (LL)queries[i + base].ts, (LL)queries[i + base].te, k_val);
-		//			exit(0);
-		//		}
+		UI ts = rand() % range + 1;
+		UI te = ts + window_size;
+		queries[i] = { ts,te };
 	}
 	auto phc_start = clock();
-	for (int i = 0; i < group_size; i++)
+	for (int i = 0; i < GroupSize; i++)
 	{
-		vector<int>phc_result = query_By_PHC(queries[i + base].ts, queries[i + base].te, k_val);
-		ans1[i + base] = phc_result.size();
+		vector<int>phc_result = query_By_PHC(queries[i].ts, queries[i].te, k_val);
+		ans1[i] = phc_result.size();
 	}
 	auto phc_end = clock();
 	double phc_cost = phc_end - phc_start;
 	auto mcts_start = clock();
-	for (int i = 0; i < group_size; i++)
+	for (int i = 0; i < GroupSize; i++)
 	{
-		vector<int>mcts_result = query_By_MCTS(queries[i + base].ts, queries[i + base].te, k_val);
-		ans2[i + base] = mcts_result.size();
+		vector<int>mcts_result = query_By_MCTS(queries[i].ts, queries[i].te, k_val);
+		ans2[i] = mcts_result.size();
 	}
 	auto mcts_end = clock();
 	double mcts_cost = mcts_end - mcts_start;
 
 	double tcd_cost = 0;
-	for (int i = 0; i < group_size; i++)
+	for (int i = 0; i < TCDGroupSize; i++)
 	{
-		int l = getL(queries[i + base].ts), r = getR(queries[i + base].te);
+		int l = getL(queries[i].ts), r = getR(queries[i].te);
 		buildtel(l, r);
 		initMH(l, r);
 		auto tcd_start = clock();
 		vector<int>tcd_result = query_By_TCD(k_val);
 		auto tcd_end = clock();
-		ans3[i + base] = tcd_result.size();
+		ans3[i] = tcd_result.size();
 		tcd_cost += tcd_end - tcd_start;
 	}
-	for (int i = 0; i < group_size; i++)
+	for (int i = 0; i < GroupSize; i++)
 	{
-		if (ans1[i + base] != ans2[i + base] || ans2[i + base] != ans3[i + base])
+		if (ans1[i] != ans2[i] || i < TCDGroupSize && ans2[i] != ans3[i])
 		{
-			cout << "error  " << ans1[i + base] << " " << ans2[i + base];
+			cout << "error  " << ans1[i] << " " << ans2[i] << " " << ans3[i];
 			exit(0);
 		}
 	}
-	base += group_size;
-	phc_cost *= 1e6 / CLOCKS_PER_SEC / group_size;
-	mcts_cost *= 1e6 / CLOCKS_PER_SEC / group_size;
-	tcd_cost *= 1e6 / CLOCKS_PER_SEC / group_size;
-	printf("window_rate is %.2lf, k_rate is %.2lf\ngroup_size is %d\nphc_time_cost is %.6lf us\n,mcts_time_cost is %.6lf us\n,tcd_time_cost is %.6lf us \n\n\n"
-		, window_rate, k_rate, group_size, phc_cost, mcts_cost, tcd_cost);
-}
-int getGroupSize(const char* groupsize)
-{
-	int len = strlen(groupsize);
-	int ret = 0;
-	for (int i = 0; i < len; i++)
-		ret = ret * 10 + groupsize[i] - '0';
-	return ret;
+	phc_cost *= 1e6 / CLOCKS_PER_SEC / GroupSize;
+	mcts_cost *= 1e6 / CLOCKS_PER_SEC / GroupSize;
+	tcd_cost *= 1e6 / CLOCKS_PER_SEC / TCDGroupSize;
+	printf("window_rate is %.2lf, k_rate is %.2lf\ngroup_size is %d, tcd_group_size is %d\nphc_time_cost is %.6lf us\n,mcts_time_cost is %.6lf us\n,tcd_time_cost is %.6lf us \n\n\n"
+		, window_rate, k_rate, GroupSize, TCDGroupSize, phc_cost, mcts_cost, tcd_cost);
 }
 int main(int argc, char* argv[])
 {
-	if (argc != 4)
+	if (argc != 3)
 	{
-		printf("./mcts [graph] [phc] [groupsize]\n");
+		printf("./mcts [graph] [phc]\n");
 		return 1;
 	}
 	initmem();
 	loadgraph(argv[1]);
 	loadPHC(argv[2]);
-	int groupsize = getGroupSize(argv[3]);
 	build_MCTS();
-
 	for (double window_rate = 0.1; window_rate < 1; window_rate += 0.2)
 	{
 		for (double k_rate = 0.1; k_rate < 1; k_rate += 0.2)
 		{
-			generateTest(window_rate, k_rate, groupsize);
+			generateTest(window_rate, k_rate);
 		}
 	}
 	return 0;
