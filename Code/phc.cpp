@@ -658,8 +658,12 @@ void storePHC()
 }
 int main(int argc, char* argv[])
 {
-//	loadgraph("CollegeMsg.txt");
-	loadgraph("SuperUser.txt");
+	if (argc != 2)
+	{
+		printf("./phc [graph]\n");
+		return 1;
+	}
+	loadgraph(argv[1]);
 
 	buildPHC();
 	long long totalSize = 0;
